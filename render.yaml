@@ -1,0 +1,109 @@
+services:
+  # ── Backend API ──────────────────────────────────────────────────────────────
+  - type: web
+    name: interview-copilot-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    branch: main
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: WORKERS
+        value: 1
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: interview-copilot-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: interview-copilot-db
+          property: port
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: interview-copilot-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: interview-copilot-db
+          property: password
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: interview-copilot-db
+          property: database
+      # Render's Key Value (Redis-compatible) service only exposes "connectionString",
+      # "host", and "port" as valid fromService properties — NOT "password" or "url".
+      - key: REDIS_URL
+        fromService:
+          name: interview-copilot-redis
+          type: redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      # IMPORTANT: this must be a JSON array string, e.g. ["https://your-frontend.onrender.com"]
+      # A bare URL without brackets will crash pydantic-settings on startup.
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
+
+  # ── Frontend ──────────────────────────────────────────────────────────────────
+  - type: web
+    name: interview-copilot-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    region: oregon
+    branch: main
+    envVars:
+      # Render's fromService "host" property may return a bare hostname without
+      # the https:// scheme, which would break axios's baseURL construction in
+      # api.ts. Set this manually after the backend's first deploy to its FULL
+      # URL, e.g. https://interview-copilot-backend.onrender.com
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+        sync: false
+
+  # ── Redis (Key Value) ──────────────────────────────────────────────────────────
+  - type: redis
+    name: interview-copilot-redis
+    plan: free
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Allow all (required on free plan)
+
+databases:
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  - name: interview-copilot-db
+    plan: free
+    region: oregon
+    databaseName: interview_copilot
+    user: interview_copilot_user
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Allow all (required on free plan)
